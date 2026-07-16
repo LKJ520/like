@@ -1,0 +1,12 @@
+.tools
+.vercel
+.env.local
+.env.*.local
+.edge-*
+*.zip
+*.rar
+/*.jpg
+/*.jpeg
+/*.png
+/*.webp
+assets/romantic-bg.png

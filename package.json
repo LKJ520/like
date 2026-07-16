@@ -1,0 +1,8 @@
+{
+  "name": "design-page",
+  "private": true,
+  "scripts": {
+    "dev": "node .tools/static-server.js",
+    "start": "node .tools/static-server.js"
+  }
+}
