@@ -1,9 +1,4 @@
 {
-  "functions": {
-    "api/photos.js": {
-      "runtime": "nodejs20.x"
-    }
-  },
   "headers": [
     {
       "source": "/assets/(.*)",
