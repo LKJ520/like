@@ -2,7 +2,7 @@
   "name": "design-page",
   "private": true,
   "scripts": {
-    "build": "echo No build step required",
+    "build": "node scripts/build-vercel.js",
     "dev": "node .tools/static-server.js",
     "start": "node .tools/static-server.js"
   }

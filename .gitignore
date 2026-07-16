@@ -6,4 +6,5 @@ node_modules
 .tools/logs
 .tools/package-lock.json
 .edge-audio-convert-profile
+/public
 .DS_Store
