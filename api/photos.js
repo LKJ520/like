@@ -41,25 +41,59 @@ function encodeObjectPath(objectPath) {
   return objectPath.split("/").map(encodeURIComponent).join("/");
 }
 
-function getExtension(fileName = "", mimeType = "") {
+const mimeExtensionMap = {
+  "image/jpeg": ".jpg",
+  "image/jpg": ".jpg",
+  "image/png": ".png",
+  "image/webp": ".webp",
+  "image/gif": ".gif",
+  "image/avif": ".avif",
+  "image/heic": ".heic",
+  "image/heif": ".heif",
+  "video/mp4": ".mp4",
+  "video/webm": ".webm",
+  "video/quicktime": ".mov",
+  "video/x-msvideo": ".avi",
+  "video/x-m4v": ".m4v",
+};
+
+const imageExtensions = new Set([".jpg", ".jpeg", ".png", ".webp", ".gif", ".avif", ".heic", ".heif"]);
+const videoExtensions = new Set([".mp4", ".webm", ".mov", ".avi", ".m4v"]);
+
+function normalizeMimeType(mimeType = "") {
+  return String(mimeType).split(";")[0].trim().toLowerCase();
+}
+
+function getFileExtension(fileName = "") {
   const nameMatch = fileName.toLowerCase().match(/\.[a-z0-9]+$/);
   if (nameMatch) {
     const ext = nameMatch[0];
     if (ext.length <= 6) return ext;
   }
 
-  const mimeMap = {
-    "image/jpeg": ".jpg",
-    "image/jpg": ".jpg",
-    "image/png": ".png",
-    "image/webp": ".webp",
-    "image/gif": ".gif",
-    "image/avif": ".avif",
-    "image/heic": ".heic",
-    "image/heif": ".heif",
-  };
+  return "";
+}
 
-  return mimeMap[mimeType.toLowerCase()] || ".jpg";
+function getMediaType(fileName = "", mimeType = "") {
+  const normalizedMimeType = normalizeMimeType(mimeType);
+  if (normalizedMimeType.startsWith("image/")) return "photo";
+  if (normalizedMimeType.startsWith("video/")) return "video";
+
+  const ext = getFileExtension(fileName);
+  if (imageExtensions.has(ext)) return "photo";
+  if (videoExtensions.has(ext)) return "video";
+
+  return "";
+}
+
+function getExtension(fileName = "", mimeType = "", mediaType = "photo") {
+  const ext = getFileExtension(fileName);
+  if (imageExtensions.has(ext) || videoExtensions.has(ext)) return ext;
+
+  const mappedExt = mimeExtensionMap[normalizeMimeType(mimeType)];
+  if (mappedExt) return mappedExt;
+
+  return mediaType === "video" ? ".mp4" : ".jpg";
 }
 
 async function readRawBody(request) {
@@ -99,6 +133,7 @@ async function queryPhotos(ownerToken) {
     name: row.name,
     storagePath: row.storage_path,
     publicUrl: `${SUPABASE_ROOT}/storage/v1/object/public/${SUPABASE_BUCKET}/${encodeObjectPath(row.storage_path)}`,
+    mediaType: getMediaType(row.storage_path || row.name || ""),
     createdAt: row.created_at,
     isOwner: ownerToken && row.owner_token === ownerToken,
   }));
@@ -110,17 +145,22 @@ async function uploadPhoto(request) {
   const fileName = rawFileName ? decodeURIComponent(rawFileName) : "";
   const fileType = String(request.headers["content-type"] || "application/octet-stream").trim();
   const fileBuffer = await readRawBody(request);
+  const mediaType = getMediaType(fileName, fileType);
 
   if (!fileBuffer.length) {
-    return jsonResponse(400, { error: "缺少图片文件" });
+    return jsonResponse(400, { error: "缺少上传文件" });
   }
 
   if (!ownerToken) {
     return jsonResponse(400, { error: "缺少上传标识" });
   }
 
+  if (!mediaType) {
+    return jsonResponse(400, { error: "只能上传图片或视频文件" });
+  }
+
   const fileId = randomUUID();
-  const ext = getExtension(fileName || "", fileType || "");
+  const ext = getExtension(fileName || "", fileType || "", mediaType);
   const storagePath = `gallery/${fileId}${ext}`;
   const uploadUrl = `${SUPABASE_ROOT}/storage/v1/object/${SUPABASE_BUCKET}/${encodeObjectPath(storagePath)}`;
 
@@ -140,7 +180,7 @@ async function uploadPhoto(request) {
 
   const row = {
     id: fileId,
-    name: fileName || "上传的照片",
+    name: fileName || (mediaType === "video" ? "上传的视频" : "上传的照片"),
     storage_path: storagePath,
     owner_token: ownerToken,
   };
@@ -168,6 +208,7 @@ async function uploadPhoto(request) {
     name: row.name,
     storagePath,
     publicUrl: `${SUPABASE_ROOT}/storage/v1/object/public/${SUPABASE_BUCKET}/${encodeObjectPath(storagePath)}`,
+    mediaType,
     createdAt: new Date().toISOString(),
     isOwner: true,
   });

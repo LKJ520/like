@@ -1,6 +1,6 @@
 # Supabase 相册配置
 
-这个页面现在通过 `Vercel API + Supabase` 保存照片。别人打开网站时，能从 Supabase 读到同一份公共相册。
+这个页面现在通过 `Vercel API + Supabase` 保存照片和视频。别人打开网站时，能从 Supabase 读到同一份公共相册。
 
 ## 1. 创建存储桶
 
@@ -37,8 +37,8 @@ create index if not exists gallery_photos_created_at_idx
 
 ## 4. 部署后效果
 
-- 上传照片会先到 `/api/photos`
-- API 再把照片写入 Supabase Storage 和表
-- 页面重新打开时，会自动拉回全部公开照片
-- 只有本浏览器里上传过的照片，才会显示删除权限
+- 上传照片或视频会先到 `/api/photos`
+- API 再把文件写入 Supabase Storage 和表
+- 页面重新打开时，会自动拉回全部公开照片和视频
+- 只有本浏览器里上传过的内容，才会显示删除权限
 

@@ -342,11 +342,38 @@
       background: var(--blue);
     }
 
-    .gallery img {
+    .gallery img,
+    .gallery video {
       width: 100%;
       height: 100%;
       object-fit: cover;
       mix-blend-mode: normal;
+    }
+
+    .gallery button[data-media-type="video"]::before {
+      position: absolute;
+      inset: auto 10px 10px auto;
+      z-index: 1;
+      width: 38px;
+      height: 38px;
+      border: 3px solid var(--line);
+      border-radius: 999px;
+      content: "";
+      background: var(--white);
+      box-shadow: 3px 3px 0 var(--line);
+    }
+
+    .gallery button[data-media-type="video"]::after {
+      position: absolute;
+      right: 20px;
+      bottom: 20px;
+      z-index: 2;
+      width: 0;
+      height: 0;
+      border-top: 8px solid transparent;
+      border-bottom: 8px solid transparent;
+      border-left: 13px solid var(--red);
+      content: "";
     }
 
     .gallery button:nth-child(3n + 1) img {
@@ -544,7 +571,8 @@
       margin: 0;
     }
 
-    .lightbox img {
+    .lightbox img,
+    .lightbox video {
       width: 100%;
       max-height: 78vh;
       border: 3px solid var(--line);
@@ -768,13 +796,15 @@
 
     <section class="gallery-section" id="gallery" aria-labelledby="galleryTitle">
       <div class="section-block">
-        <h2 id="galleryTitle">把照片也放进喜欢里</h2>
-        <p class="section-intro">点开每张照片，就像把这一刻单独拿出来再看一次。</p>
+        <h2 id="galleryTitle">把照片和视频也放进喜欢里</h2>
+        <p class="section-intro">点开每张照片和视频，就像把这一刻单独拿出来再看一次。</p>
         <div class="gallery-actions">
           <button class="secondary" type="button" id="uploadPhotos">上传照片</button>
           <input id="uploadPhotosInput" type="file" accept="image/*" multiple hidden>
+          <button class="secondary" type="button" id="uploadVideos">上传视频</button>
+          <input id="uploadVideosInput" type="file" accept="video/*" multiple hidden>
         </div>
-        <div class="gallery" aria-label="照片相册">
+        <div class="gallery" aria-label="照片和视频相册">
           <button type="button"><img src="assets/photos/photo-01.jpg" alt="照片 1" loading="lazy" decoding="async"></button>
           <button type="button"><img src="assets/photos/photo-02.jpg" alt="照片 2" loading="lazy" decoding="async"></button>
           <button type="button"><img src="assets/photos/photo-03.jpg" alt="照片 3" loading="lazy" decoding="async"></button>
@@ -791,13 +821,14 @@
   </main>
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
-  <div class="lightbox" id="lightbox" aria-modal="true" role="dialog" aria-label="照片预览">
+  <div class="lightbox" id="lightbox" aria-modal="true" role="dialog" aria-label="照片和视频预览">
     <div class="lightbox-actions">
       <button type="button" id="deleteLightboxPhoto">删除</button>
       <button type="button" id="closeLightbox">关闭</button>
     </div>
     <figure>
       <img id="lightboxImage" src="" alt="">
+      <video id="lightboxVideo" src="" controls playsinline hidden></video>
     </figure>
   </div>
 
@@ -819,6 +850,9 @@
     const gallery = document.querySelector(".gallery");
     const uploadPhotos = document.querySelector("#uploadPhotos");
     const uploadPhotosInput = document.querySelector("#uploadPhotosInput");
+    const uploadVideos = document.querySelector("#uploadVideos");
+    const uploadVideosInput = document.querySelector("#uploadVideosInput");
+    const lightboxVideo = document.querySelector("#lightboxVideo");
     const photoApiPath = "/api/photos";
     const ownerTokenKey = "love-page-owner-token";
     let sessionOwnerToken = "";
@@ -919,19 +953,39 @@
       return body;
     }
 
-    function setUploadBusy(isBusy) {
+    function setUploadBusy(isBusy, mediaType = "photo") {
       uploadPhotos.disabled = isBusy;
       uploadPhotosInput.disabled = isBusy;
-      uploadPhotos.textContent = isBusy ? "上传中..." : "上传照片";
+      uploadVideos.disabled = isBusy;
+      uploadVideosInput.disabled = isBusy;
+      uploadPhotos.textContent = isBusy && mediaType === "photo" ? "上传中..." : "上传照片";
+      uploadVideos.textContent = isBusy && mediaType === "video" ? "上传中..." : "上传视频";
     }
 
-    function openPhoto(img) {
-      currentPhotoButton = img.closest(".gallery button");
+    function openPhoto(button) {
+      currentPhotoButton = button;
       const canDelete = currentPhotoButton && currentPhotoButton.dataset.owner === "true";
       deleteLightboxPhoto.disabled = !canDelete;
-      deleteLightboxPhoto.title = canDelete ? "删除这张上传的照片" : "只能删除你上传的照片";
-      lightboxImage.src = img.src;
-      lightboxImage.alt = img.alt;
+      deleteLightboxPhoto.title = canDelete ? "删除这条上传的内容" : "只能删除你上传的内容";
+
+      const isVideo = currentPhotoButton.dataset.mediaType === "video";
+      if (isVideo) {
+        const video = currentPhotoButton.querySelector("video");
+        lightboxImage.hidden = true;
+        lightboxImage.src = "";
+        lightboxVideo.hidden = false;
+        lightboxVideo.src = currentPhotoButton.dataset.src || (video && (video.currentSrc || video.src)) || "";
+        lightboxVideo.play().catch(() => {});
+      } else {
+        const img = currentPhotoButton.querySelector("img");
+        lightboxVideo.pause();
+        lightboxVideo.hidden = true;
+        lightboxVideo.src = "";
+        lightboxImage.hidden = false;
+        lightboxImage.src = img.src;
+        lightboxImage.alt = img.alt;
+      }
+
       lightbox.classList.add("is-open");
       document.body.style.overflow = "hidden";
     }
@@ -939,6 +993,10 @@
     function closePhoto() {
       lightbox.classList.remove("is-open");
       lightboxImage.src = "";
+      lightboxImage.hidden = false;
+      lightboxVideo.pause();
+      lightboxVideo.src = "";
+      lightboxVideo.hidden = true;
       currentPhotoButton = null;
       deleteLightboxPhoto.disabled = false;
       deleteLightboxPhoto.removeAttribute("title");
@@ -947,16 +1005,26 @@
 
     function appendGalleryPhoto(record) {
       const button = document.createElement("button");
-      const img = document.createElement("img");
+      const isVideo = record.mediaType === "video";
+      const media = document.createElement(isVideo ? "video" : "img");
       button.type = "button";
       button.dataset.photoId = record.id;
       button.dataset.owner = record.isOwner ? "true" : "false";
       button.dataset.remote = "true";
-      img.src = record.publicUrl;
-      img.alt = record.name || "照片";
-      img.loading = "lazy";
-      img.decoding = "async";
-      button.appendChild(img);
+      button.dataset.mediaType = isVideo ? "video" : "photo";
+      button.dataset.src = record.publicUrl;
+      button.setAttribute("aria-label", record.name || (isVideo ? "视频" : "照片"));
+      media.src = record.publicUrl;
+      if (isVideo) {
+        media.muted = true;
+        media.preload = "metadata";
+        media.playsInline = true;
+      } else {
+        media.alt = record.name || "照片";
+        media.loading = "lazy";
+        media.decoding = "async";
+      }
+      button.appendChild(media);
       gallery.appendChild(button);
     }
 
@@ -965,7 +1033,7 @@
 
       const photoId = currentPhotoButton.dataset.photoId;
       if (!photoId || currentPhotoButton.dataset.owner !== "true") {
-        showToast("只能删除你上传的照片");
+        showToast("只能删除你上传的内容");
         return;
       }
 
@@ -987,17 +1055,17 @@
 
       currentPhotoButton.remove();
       closePhoto();
-      showToast("这张照片已删除");
+      showToast("这条内容已删除");
     }
 
-    async function appendUploadedPhoto(file, index) {
+    async function appendUploadedPhoto(file, index, mediaType = "photo") {
       try {
         const record = await fetchJson(photoApiPath, {
           method: "POST",
           headers: {
             "Content-Type": file.type || "application/octet-stream",
             "x-photo-owner-token": ownerToken,
-            "x-file-name": encodeURIComponent(file.name || `photo-${index + 1}`),
+            "x-file-name": encodeURIComponent(file.name || `${mediaType}-${index + 1}`),
           },
           body: file,
         });
@@ -1025,25 +1093,38 @@
       }
     }
 
-    async function handleUploadChange() {
-      const files = Array.from(uploadPhotosInput.files || []);
+    function isAllowedMediaFile(file, mediaType) {
+      if (file.type.startsWith(`${mediaType === "video" ? "video" : "image"}/`)) return true;
+
+      const name = file.name.toLowerCase();
+      const imageExtensions = [".jpg", ".jpeg", ".png", ".webp", ".gif", ".avif", ".heic", ".heif"];
+      const videoExtensions = [".mp4", ".webm", ".mov", ".avi", ".m4v"];
+      const extensions = mediaType === "video" ? videoExtensions : imageExtensions;
+      return extensions.some((ext) => name.endsWith(ext));
+    }
+
+    async function handleUploadChange(mediaType = "photo") {
+      const input = mediaType === "video" ? uploadVideosInput : uploadPhotosInput;
+      const label = mediaType === "video" ? "视频" : "照片";
+      const unit = mediaType === "video" ? "个" : "张";
+      const files = Array.from(input.files || []);
       if (!files.length) return;
 
-      const images = files.filter((file) => file.type.startsWith("image/"));
-      if (!images.length) {
-        showToast("请只选择图片文件");
-        uploadPhotosInput.value = "";
+      const selectedFiles = files.filter((file) => isAllowedMediaFile(file, mediaType));
+      if (!selectedFiles.length) {
+        showToast(`请只选择${label}文件`);
+        input.value = "";
         return;
       }
 
-      setUploadBusy(true);
+      setUploadBusy(true, mediaType);
       try {
         let savedCount = 0;
         let hadSaveError = false;
         let lastErrorMessage = "";
-        for (const [index, file] of images.entries()) {
+        for (const [index, file] of selectedFiles.entries()) {
           try {
-            await appendUploadedPhoto(file, index);
+            await appendUploadedPhoto(file, index, mediaType);
             savedCount += 1;
           } catch (error) {
             hadSaveError = true;
@@ -1053,13 +1134,13 @@
         }
 
         if (savedCount > 0) {
-          showToast(hadSaveError ? `已保存 ${savedCount} 张，部分照片失败` : `已保存 ${savedCount} 张照片`);
+          showToast(hadSaveError ? `已保存 ${savedCount} ${unit}，部分${label}失败` : `已保存 ${savedCount} ${unit}${label}`);
         } else if (hadSaveError) {
-          showToast(lastErrorMessage || "照片保存失败，请检查接口配置");
+          showToast(lastErrorMessage || `${label}保存失败，请检查接口配置`);
         }
       } finally {
-        setUploadBusy(false);
-        uploadPhotosInput.value = "";
+        setUploadBusy(false, mediaType);
+        input.value = "";
       }
     }
 
@@ -1113,14 +1194,17 @@
     gallery.addEventListener("click", (event) => {
       const button = event.target.closest("button");
       if (!button || !gallery.contains(button)) return;
-      const img = button.querySelector("img");
-      if (img) openPhoto(img);
+      openPhoto(button);
     });
 
     uploadPhotos.addEventListener("click", () => {
       uploadPhotosInput.click();
     });
-    uploadPhotosInput.addEventListener("change", handleUploadChange);
+    uploadPhotosInput.addEventListener("change", () => handleUploadChange("photo"));
+    uploadVideos.addEventListener("click", () => {
+      uploadVideosInput.click();
+    });
+    uploadVideosInput.addEventListener("change", () => handleUploadChange("video"));
 
     closeLightbox.addEventListener("click", closePhoto);
     deleteLightboxPhoto.addEventListener("click", deleteCurrentPhoto);
