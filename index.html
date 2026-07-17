@@ -1216,6 +1216,11 @@
 
     async function appendUploadedPhoto(file, index, mediaType = "photo") {
       try {
+        if (mediaType === "video") {
+          await appendUploadedVideo(file, index);
+          return;
+        }
+
         const record = await fetchJson(photoApiPath, {
           method: "POST",
           headers: {
@@ -1225,13 +1230,68 @@
           },
           body: file,
         });
-        if (mediaType === "video") {
-          record.previewUrl = URL.createObjectURL(file);
-        }
         appendGalleryPhoto(record);
       } catch (error) {
         throw error;
       }
+    }
+
+    async function uploadToSignedUrl(signedUrl, file) {
+      const formData = new FormData();
+      formData.append("cacheControl", "3600");
+      formData.append("", file);
+
+      const response = await fetch(signedUrl, {
+        method: "PUT",
+        headers: {
+          "x-upsert": "false",
+        },
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const message = await response.text();
+        throw new Error(message || `视频上传失败: ${response.status}`);
+      }
+    }
+
+    async function appendUploadedVideo(file, index) {
+      const name = file.name || `video-${index + 1}`;
+      const upload = await fetchJson(photoApiPath, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-photo-owner-token": ownerToken,
+        },
+        body: JSON.stringify({
+          action: "createUpload",
+          name,
+          type: file.type || "application/octet-stream",
+        }),
+      });
+
+      try {
+        await uploadToSignedUrl(upload.signedUrl, file);
+      } catch (error) {
+        throw new Error(error.message || "视频直传失败，请压缩后再试");
+      }
+
+      const record = await fetchJson(photoApiPath, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-photo-owner-token": ownerToken,
+        },
+        body: JSON.stringify({
+          action: "finalizeUpload",
+          id: upload.id,
+          name: upload.name || name,
+          storagePath: upload.storagePath,
+          type: file.type || "application/octet-stream",
+        }),
+      });
+      record.previewUrl = URL.createObjectURL(file);
+      appendGalleryPhoto(record);
     }
 
     async function restoreSavedPhotos() {

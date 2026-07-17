@@ -96,6 +96,27 @@ function getExtension(fileName = "", mimeType = "", mediaType = "photo") {
   return mediaType === "video" ? ".mp4" : ".jpg";
 }
 
+function createMediaRecord(fileId, fileName, storagePath, ownerToken, mediaType) {
+  return {
+    id: fileId,
+    name: fileName || (mediaType === "video" ? "上传的视频" : "上传的照片"),
+    storage_path: storagePath,
+    owner_token: ownerToken,
+  };
+}
+
+function toPublicRecord(row, mediaType = "") {
+  return {
+    id: row.id,
+    name: row.name,
+    storagePath: row.storage_path,
+    publicUrl: `${SUPABASE_ROOT}/storage/v1/object/public/${SUPABASE_BUCKET}/${encodeObjectPath(row.storage_path)}`,
+    mediaType: mediaType || getMediaType(row.storage_path || row.name || ""),
+    createdAt: row.created_at || new Date().toISOString(),
+    isOwner: true,
+  };
+}
+
 async function readRawBody(request) {
   const chunks = [];
   for await (const chunk of request) {
@@ -129,14 +150,120 @@ async function queryPhotos(ownerToken) {
 
   const rows = await response.json();
   return rows.map((row) => ({
-    id: row.id,
-    name: row.name,
-    storagePath: row.storage_path,
-    publicUrl: `${SUPABASE_ROOT}/storage/v1/object/public/${SUPABASE_BUCKET}/${encodeObjectPath(row.storage_path)}`,
-    mediaType: getMediaType(row.storage_path || row.name || ""),
-    createdAt: row.created_at,
+    ...toPublicRecord(row),
     isOwner: ownerToken && row.owner_token === ownerToken,
   }));
+}
+
+async function insertPhotoRecord(row, mediaType) {
+  const insertResponse = await fetch(`${SUPABASE_ROOT}/rest/v1/${SUPABASE_TABLE}`, {
+    method: "POST",
+    headers: supabaseHeaders({
+      "Content-Type": "application/json",
+      Prefer: "return=representation",
+    }),
+    body: JSON.stringify(row),
+  });
+
+  if (!insertResponse.ok) {
+    const text = await insertResponse.text();
+    return {
+      ok: false,
+      error: `保存照片记录失败: ${text}`,
+    };
+  }
+
+  const rows = await insertResponse.json();
+  return {
+    ok: true,
+    record: toPublicRecord(rows[0] || row, mediaType),
+  };
+}
+
+async function createSignedUpload(request, bodyOverride) {
+  const body = bodyOverride || await readBodyJson(request);
+  const ownerToken = String(request.headers["x-photo-owner-token"] || body.ownerToken || "").trim();
+  const fileName = String(body.name || "").trim();
+  const fileType = String(body.type || "application/octet-stream").trim();
+  const mediaType = getMediaType(fileName, fileType);
+
+  if (!ownerToken) {
+    return jsonResponse(400, { error: "缺少上传标识" });
+  }
+
+  if (mediaType !== "video") {
+    return jsonResponse(400, { error: "直传地址只用于视频文件" });
+  }
+
+  const fileId = randomUUID();
+  const ext = getExtension(fileName, fileType, mediaType);
+  const storagePath = `gallery/${fileId}${ext}`;
+  const signUrl = `${SUPABASE_ROOT}/storage/v1/object/upload/sign/${SUPABASE_BUCKET}/${encodeObjectPath(storagePath)}`;
+
+  const signResponse = await fetch(signUrl, {
+    method: "POST",
+    headers: supabaseHeaders({
+      "Content-Type": "application/json",
+    }),
+    body: JSON.stringify({ upsert: false }),
+  });
+
+  if (!signResponse.ok) {
+    const text = await signResponse.text();
+    return jsonResponse(500, { error: `创建视频上传地址失败: ${text}` });
+  }
+
+  const signed = await signResponse.json();
+  const signedPath = signed.url || signed.signedUrl;
+  if (!signedPath) {
+    return jsonResponse(500, { error: "创建视频上传地址失败: 响应缺少上传地址" });
+  }
+
+  const signedUrl = signedPath.startsWith("http")
+    ? signedPath
+    : `${SUPABASE_ROOT}${signedPath.startsWith("/storage/v1/") ? "" : "/storage/v1"}${signedPath}`;
+
+  return jsonResponse(200, {
+    id: fileId,
+    name: fileName || "上传的视频",
+    storagePath,
+    signedUrl,
+    publicUrl: `${SUPABASE_ROOT}/storage/v1/object/public/${SUPABASE_BUCKET}/${encodeObjectPath(storagePath)}`,
+    mediaType,
+  });
+}
+
+async function finalizeSignedUpload(request, bodyOverride) {
+  const body = bodyOverride || await readBodyJson(request);
+  const ownerToken = String(request.headers["x-photo-owner-token"] || body.ownerToken || "").trim();
+  const fileId = String(body.id || "").trim();
+  const storagePath = String(body.storagePath || "").trim();
+  const fileName = String(body.name || "").trim();
+  const mediaType = getMediaType(storagePath || fileName, body.type || "");
+
+  if (!ownerToken) {
+    return jsonResponse(400, { error: "缺少上传标识" });
+  }
+
+  if (!fileId || !storagePath) {
+    return jsonResponse(400, { error: "缺少视频上传记录" });
+  }
+
+  if (mediaType !== "video" || !storagePath.startsWith(`gallery/${fileId}`)) {
+    return jsonResponse(400, { error: "视频上传记录不合法" });
+  }
+
+  const row = createMediaRecord(fileId, fileName, storagePath, ownerToken, mediaType);
+  const inserted = await insertPhotoRecord(row, mediaType);
+  if (!inserted.ok) {
+    await fetch(`${SUPABASE_ROOT}/storage/v1/object/${SUPABASE_BUCKET}/${encodeObjectPath(storagePath)}`, {
+      method: "DELETE",
+      headers: supabaseHeaders(),
+    });
+    return jsonResponse(500, { error: inserted.error });
+  }
+
+  return jsonResponse(200, inserted.record);
 }
 
 async function uploadPhoto(request) {
@@ -178,40 +305,18 @@ async function uploadPhoto(request) {
     return jsonResponse(500, { error: `上传文件失败: ${text}` });
   }
 
-  const row = {
-    id: fileId,
-    name: fileName || (mediaType === "video" ? "上传的视频" : "上传的照片"),
-    storage_path: storagePath,
-    owner_token: ownerToken,
-  };
+  const row = createMediaRecord(fileId, fileName, storagePath, ownerToken, mediaType);
+  const inserted = await insertPhotoRecord(row, mediaType);
 
-  const insertResponse = await fetch(`${SUPABASE_ROOT}/rest/v1/${SUPABASE_TABLE}`, {
-    method: "POST",
-    headers: supabaseHeaders({
-      "Content-Type": "application/json",
-      Prefer: "return=representation",
-    }),
-    body: JSON.stringify(row),
-  });
-
-  if (!insertResponse.ok) {
+  if (!inserted.ok) {
     await fetch(`${SUPABASE_ROOT}/storage/v1/object/${SUPABASE_BUCKET}/${encodeObjectPath(storagePath)}`, {
       method: "DELETE",
       headers: supabaseHeaders(),
     });
-    const text = await insertResponse.text();
-    return jsonResponse(500, { error: `保存照片记录失败: ${text}` });
+    return jsonResponse(500, { error: inserted.error });
   }
 
-  return jsonResponse(200, {
-    id: fileId,
-    name: row.name,
-    storagePath,
-    publicUrl: `${SUPABASE_ROOT}/storage/v1/object/public/${SUPABASE_BUCKET}/${encodeObjectPath(storagePath)}`,
-    mediaType,
-    createdAt: new Date().toISOString(),
-    isOwner: true,
-  });
+  return jsonResponse(200, inserted.record);
 }
 
 async function deletePhoto(request) {
@@ -286,6 +391,30 @@ module.exports = async function handler(request, response) {
     }
 
     if (request.method === "POST") {
+      const contentType = String(request.headers["content-type"] || "");
+      if (contentType.includes("application/json")) {
+        const body = await readBodyJson(request);
+        if (body.action === "createUpload") {
+          const result = await createSignedUpload(request, body);
+          response
+            .status(result.status)
+            .setHeader("Content-Type", "application/json; charset=utf-8")
+            .setHeader("Cache-Control", "no-store")
+            .send(result.body);
+          return;
+        }
+
+        if (body.action === "finalizeUpload") {
+          const result = await finalizeSignedUpload(request, body);
+          response
+            .status(result.status)
+            .setHeader("Content-Type", "application/json; charset=utf-8")
+            .setHeader("Cache-Control", "no-store")
+            .send(result.body);
+          return;
+        }
+      }
+
       const result = await uploadPhoto(request);
       response
         .status(result.status)
