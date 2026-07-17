@@ -151,46 +151,73 @@
 
     .hero-photos {
       position: relative;
+      display: grid;
+      align-items: end;
       min-height: 560px;
     }
 
-    .photo-tile {
-      position: absolute;
+    .hero-carousel {
+      position: relative;
       overflow: hidden;
+      width: min(100%, 470px);
+      margin-left: auto;
       border: 3px solid var(--line);
       border-radius: 8px;
       background: var(--white);
+      aspect-ratio: 4 / 5;
       box-shadow: var(--shadow);
+      touch-action: pan-y;
+      user-select: none;
     }
 
-    .photo-tile img {
+    .hero-slide {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      transition: opacity 420ms ease;
+    }
+
+    .hero-slide.is-active {
+      opacity: 1;
+      z-index: 1;
+    }
+
+    .hero-slide img {
       width: 100%;
       height: 100%;
       object-fit: cover;
     }
 
-    .photo-tile:nth-child(1) {
-      top: 26px;
-      right: 8px;
-      width: 72%;
-      aspect-ratio: 3 / 4;
-      transform: rotate(3deg);
+    .hero-carousel-dots button {
+      display: grid;
+      place-items: center;
+      width: 14px;
+      min-width: 0;
+      height: 14px;
+      min-height: 0;
+      padding: 0;
+      background: var(--white);
     }
 
-    .photo-tile:nth-child(2) {
-      left: 0;
-      bottom: 64px;
-      width: 54%;
-      aspect-ratio: 4 / 3;
-      transform: rotate(-5deg);
+    .hero-carousel-dots {
+      position: absolute;
+      left: 50%;
+      bottom: 14px;
+      z-index: 2;
+      display: flex;
+      gap: 8px;
+      transform: translateX(-50%);
     }
 
-    .photo-tile:nth-child(3) {
-      right: 26px;
-      bottom: 0;
-      width: 46%;
-      aspect-ratio: 1;
-      transform: rotate(5deg);
+    .hero-carousel-dots button {
+      border-width: 2px;
+      border-radius: 999px;
+      background: var(--white);
+      box-shadow: 2px 2px 0 var(--line);
+    }
+
+    .hero-carousel-dots button.is-active {
+      background: var(--yellow);
     }
 
     .heart-badge {
@@ -209,7 +236,7 @@
       font-weight: 900;
       box-shadow: var(--shadow);
       transform: rotate(-9deg);
-      z-index: 2;
+      z-index: 3;
     }
 
     .letter,
@@ -645,25 +672,15 @@
         order: -1;
       }
 
+      .hero-carousel {
+        width: min(100%, 390px);
+        margin: 0 auto;
+      }
+
       .heart-badge {
         width: 78px;
         height: 78px;
         font-size: 32px;
-      }
-
-      .photo-tile:nth-child(1) {
-        right: 0;
-        width: 68%;
-      }
-
-      .photo-tile:nth-child(2) {
-        bottom: 70px;
-        width: 56%;
-      }
-
-      .photo-tile:nth-child(3) {
-        right: 10px;
-        width: 44%;
       }
 
       .action-row {
@@ -746,11 +763,21 @@
         </div>
       </div>
 
-      <div class="hero-photos" aria-label="照片拼贴">
+      <div class="hero-photos" aria-label="照片轮播">
         <div class="heart-badge">爱</div>
-        <div class="photo-tile"><img src="assets/photos/photo-01.jpg" alt="刘坤洁和朱洲毅的照片 1" loading="eager" decoding="async" fetchpriority="high"></div>
-        <div class="photo-tile"><img src="assets/photos/photo-03.jpg" alt="刘坤洁和朱洲毅的照片 2" loading="eager" decoding="async" fetchpriority="high"></div>
-        <div class="photo-tile"><img src="assets/photos/photo-05.jpg" alt="刘坤洁和朱洲毅的照片 3" loading="eager" decoding="async" fetchpriority="high"></div>
+        <div class="hero-carousel" id="heroCarousel" aria-roledescription="carousel">
+          <div class="hero-slide is-active"><img src="assets/photos/photo-01.jpg" alt="刘坤洁和朱洲毅的照片 1" loading="eager" decoding="async" fetchpriority="high"></div>
+          <div class="hero-slide"><img src="assets/photos/photo-02.jpg" alt="刘坤洁和朱洲毅的照片 2" loading="lazy" decoding="async"></div>
+          <div class="hero-slide"><img src="assets/photos/photo-03.jpg" alt="刘坤洁和朱洲毅的照片 3" loading="lazy" decoding="async"></div>
+          <div class="hero-slide"><img src="assets/photos/photo-04.jpg" alt="刘坤洁和朱洲毅的照片 4" loading="lazy" decoding="async"></div>
+          <div class="hero-slide"><img src="assets/photos/photo-05.jpg" alt="刘坤洁和朱洲毅的照片 5" loading="lazy" decoding="async"></div>
+          <div class="hero-slide"><img src="assets/photos/photo-06.jpg" alt="刘坤洁和朱洲毅的照片 6" loading="lazy" decoding="async"></div>
+          <div class="hero-slide"><img src="assets/photos/photo-07.jpg" alt="刘坤洁和朱洲毅的照片 7" loading="lazy" decoding="async"></div>
+          <div class="hero-slide"><img src="assets/photos/photo-08.jpg" alt="刘坤洁和朱洲毅的照片 8" loading="lazy" decoding="async"></div>
+          <div class="hero-slide"><img src="assets/photos/photo-09.jpg" alt="刘坤洁和朱洲毅的照片 9" loading="lazy" decoding="async"></div>
+          <div class="hero-slide"><img src="assets/photos/photo-10.jpg" alt="刘坤洁和朱洲毅的照片 10" loading="lazy" decoding="async"></div>
+          <div class="hero-carousel-dots" id="heroCarouselDots" aria-label="照片页码"></div>
+        </div>
       </div>
 
       <article class="letter" id="letter" hidden>
@@ -857,6 +884,9 @@
     const uploadVideos = document.querySelector("#uploadVideos");
     const uploadVideosInput = document.querySelector("#uploadVideosInput");
     const lightboxVideo = document.querySelector("#lightboxVideo");
+    const heroCarousel = document.querySelector("#heroCarousel");
+    const heroSlides = Array.from(document.querySelectorAll(".hero-slide"));
+    const heroCarouselDots = document.querySelector("#heroCarouselDots");
     const photoApiPath = "/api/photos";
     const ownerTokenKey = "love-page-owner-token";
     let sessionOwnerToken = "";
@@ -866,6 +896,11 @@
     let isEntering = false;
     let currentPhotoButton = null;
     let isLoadingPhotos = false;
+    let currentHeroSlide = 0;
+    let heroCarouselTimer;
+    let heroSwipeStartX = 0;
+    let heroSwipeStartY = 0;
+    let isHeroSwipeTracking = false;
 
     function showToast(message) {
       toast.textContent = message;
@@ -897,6 +932,90 @@
         const y = originY + (Math.random() - 0.5) * 100;
         createHeart(x, y, i * 18);
       }
+    }
+
+    function showHeroSlide(index) {
+      if (!heroSlides.length) return;
+      currentHeroSlide = (index + heroSlides.length) % heroSlides.length;
+      heroSlides.forEach((slide, slideIndex) => {
+        slide.classList.toggle("is-active", slideIndex === currentHeroSlide);
+      });
+      if (heroCarouselDots) {
+        Array.from(heroCarouselDots.children).forEach((dot, dotIndex) => {
+          dot.classList.toggle("is-active", dotIndex === currentHeroSlide);
+          dot.setAttribute("aria-current", dotIndex === currentHeroSlide ? "true" : "false");
+        });
+      }
+    }
+
+    function startHeroCarousel() {
+      window.clearInterval(heroCarouselTimer);
+      heroCarouselTimer = window.setInterval(() => {
+        showHeroSlide(currentHeroSlide + 1);
+      }, 3600);
+    }
+
+    function moveHeroSlide(step) {
+      showHeroSlide(currentHeroSlide + step);
+      startHeroCarousel();
+    }
+
+    function beginHeroSwipe(clientX, clientY) {
+      heroSwipeStartX = clientX;
+      heroSwipeStartY = clientY;
+      isHeroSwipeTracking = true;
+      window.clearInterval(heroCarouselTimer);
+    }
+
+    function finishHeroSwipe(clientX, clientY) {
+      if (!isHeroSwipeTracking) return;
+      const deltaX = clientX - heroSwipeStartX;
+      const deltaY = clientY - heroSwipeStartY;
+      isHeroSwipeTracking = false;
+
+      if (Math.abs(deltaX) > 48 && Math.abs(deltaX) > Math.abs(deltaY) * 1.2) {
+        moveHeroSlide(deltaX < 0 ? 1 : -1);
+        return;
+      }
+
+      startHeroCarousel();
+    }
+
+    function setupHeroCarousel() {
+      if (!heroCarousel || !heroSlides.length || !heroCarouselDots) return;
+      heroSlides.forEach((_, index) => {
+        const dot = document.createElement("button");
+        dot.type = "button";
+        dot.setAttribute("aria-label", `查看第 ${index + 1} 张照片`);
+        dot.addEventListener("click", () => {
+          showHeroSlide(index);
+          startHeroCarousel();
+        });
+        heroCarouselDots.appendChild(dot);
+      });
+      heroCarousel.addEventListener("touchstart", (event) => {
+        const touch = event.touches[0];
+        if (touch) beginHeroSwipe(touch.clientX, touch.clientY);
+      }, { passive: true });
+      heroCarousel.addEventListener("touchend", (event) => {
+        const touch = event.changedTouches[0];
+        if (touch) finishHeroSwipe(touch.clientX, touch.clientY);
+      }, { passive: true });
+      heroCarousel.addEventListener("pointerdown", (event) => {
+        if (event.pointerType === "touch") return;
+        beginHeroSwipe(event.clientX, event.clientY);
+      });
+      heroCarousel.addEventListener("pointerup", (event) => {
+        if (event.pointerType === "touch") return;
+        finishHeroSwipe(event.clientX, event.clientY);
+      });
+      heroCarousel.addEventListener("pointercancel", startHeroCarousel);
+      heroCarousel.addEventListener("mouseenter", () => window.clearInterval(heroCarouselTimer));
+      heroCarousel.addEventListener("mouseleave", startHeroCarousel);
+      heroCarousel.addEventListener("focusin", () => window.clearInterval(heroCarouselTimer));
+      heroCarousel.addEventListener("focusout", startHeroCarousel);
+      showHeroSlide(0);
+      startHeroCarousel();
     }
 
     async function startMusic(options = {}) {
@@ -1275,6 +1394,7 @@
     }
 
     enterPage.addEventListener("click", enterWithMusic);
+    setupHeroCarousel();
     installImageRetry();
     restoreSavedPhotos();
   </script>
