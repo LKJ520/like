@@ -376,6 +376,10 @@
       content: "";
     }
 
+    .gallery button[data-media-type="video"]:not(.has-video-frame) video {
+      opacity: 0;
+    }
+
     .gallery button:nth-child(3n + 1) img {
       transform: rotate(-1deg) scale(1.04);
     }
@@ -1003,6 +1007,38 @@
       document.body.style.overflow = "";
     }
 
+    function getVideoPreviewUrl(src) {
+      if (!src || src.includes("#t=")) return src;
+      return `${src}#t=0.1`;
+    }
+
+    function prepareGalleryVideo(video, button) {
+      video.muted = true;
+      video.preload = "auto";
+      video.playsInline = true;
+      video.setAttribute("playsinline", "");
+      video.setAttribute("webkit-playsinline", "");
+
+      video.addEventListener("loadedmetadata", () => {
+        if (!Number.isFinite(video.duration) || video.duration <= 0.2) return;
+        try {
+          video.currentTime = 0.1;
+        } catch (error) {
+          // 某些浏览器不允许对未完全准备好的视频 seek，继续等待 loadeddata。
+        }
+      }, { once: true });
+
+      video.addEventListener("loadeddata", () => {
+        if (button) button.classList.add("has-video-frame");
+      }, { once: true });
+
+      video.addEventListener("canplay", () => {
+        if (button) button.classList.add("has-video-frame");
+      }, { once: true });
+
+      video.load();
+    }
+
     function appendGalleryPhoto(record) {
       const button = document.createElement("button");
       const isVideo = record.mediaType === "video";
@@ -1014,17 +1050,18 @@
       button.dataset.mediaType = isVideo ? "video" : "photo";
       button.dataset.src = record.publicUrl;
       button.setAttribute("aria-label", record.name || (isVideo ? "视频" : "照片"));
-      media.src = record.publicUrl;
       if (isVideo) {
-        media.muted = true;
-        media.preload = "metadata";
-        media.playsInline = true;
+        media.src = getVideoPreviewUrl(record.previewUrl || record.publicUrl);
       } else {
+        media.src = record.publicUrl;
         media.alt = record.name || "照片";
         media.loading = "lazy";
         media.decoding = "async";
       }
       button.appendChild(media);
+      if (isVideo) {
+        prepareGalleryVideo(media, button);
+      }
       gallery.appendChild(button);
     }
 
@@ -1069,6 +1106,9 @@
           },
           body: file,
         });
+        if (mediaType === "video") {
+          record.previewUrl = URL.createObjectURL(file);
+        }
         appendGalleryPhoto(record);
       } catch (error) {
         throw error;
