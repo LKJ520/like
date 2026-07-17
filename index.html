@@ -1158,10 +1158,17 @@
       video.load();
     }
 
+    function createVideoFallback(record, button) {
+      const video = document.createElement("video");
+      video.src = getVideoPreviewUrl(record.previewUrl || record.publicUrl);
+      button.replaceChildren(video);
+      prepareGalleryVideo(video, button);
+    }
+
     function appendGalleryPhoto(record) {
       const button = document.createElement("button");
       const isVideo = record.mediaType === "video";
-      const media = document.createElement(isVideo ? "video" : "img");
+      const media = document.createElement("img");
       button.type = "button";
       button.dataset.photoId = record.id;
       button.dataset.owner = record.isOwner ? "true" : "false";
@@ -1170,7 +1177,22 @@
       button.dataset.src = record.publicUrl;
       button.setAttribute("aria-label", record.name || (isVideo ? "视频" : "照片"));
       if (isVideo) {
-        media.src = getVideoPreviewUrl(record.previewUrl || record.publicUrl);
+        if (record.posterUrl) {
+          media.src = record.posterUrl;
+          media.alt = `${record.name || "视频"}封面`;
+          media.loading = "lazy";
+          media.decoding = "async";
+          media.addEventListener("load", () => {
+            button.classList.add("has-video-frame");
+          }, { once: true });
+          media.addEventListener("error", () => {
+            createVideoFallback(record, button);
+          }, { once: true });
+        } else {
+          createVideoFallback(record, button);
+          gallery.appendChild(button);
+          return;
+        }
       } else {
         media.src = record.publicUrl;
         media.alt = record.name || "照片";
@@ -1178,9 +1200,6 @@
         media.decoding = "async";
       }
       button.appendChild(media);
-      if (isVideo) {
-        prepareGalleryVideo(media, button);
-      }
       gallery.appendChild(button);
     }
 
@@ -1236,10 +1255,10 @@
       }
     }
 
-    async function uploadToSignedUrl(signedUrl, file) {
+    async function uploadToSignedUrl(signedUrl, file, fileName) {
       const formData = new FormData();
       formData.append("cacheControl", "3600");
-      formData.append("", file);
+      formData.append("file", file, fileName || file.name || "upload");
 
       const response = await fetch(signedUrl, {
         method: "PUT",
@@ -1253,6 +1272,75 @@
         const message = await response.text();
         throw new Error(message || `视频上传失败: ${response.status}`);
       }
+    }
+
+    function createVideoPoster(file) {
+      return new Promise((resolve, reject) => {
+        const video = document.createElement("video");
+        const objectUrl = URL.createObjectURL(file);
+        let captured = false;
+        const timeoutId = window.setTimeout(() => {
+          URL.revokeObjectURL(objectUrl);
+          reject(new Error("视频封面生成超时"));
+        }, 8000);
+
+        function cleanup() {
+          window.clearTimeout(timeoutId);
+          video.removeAttribute("src");
+          video.load();
+          URL.revokeObjectURL(objectUrl);
+        }
+
+        video.muted = true;
+        video.playsInline = true;
+        video.preload = "metadata";
+        video.src = objectUrl;
+
+        function captureFrame() {
+          if (captured) return;
+          captured = true;
+          const canvas = document.createElement("canvas");
+          canvas.width = video.videoWidth || 1280;
+          canvas.height = video.videoHeight || 720;
+          const context = canvas.getContext("2d");
+          if (!context) {
+            cleanup();
+            reject(new Error("视频封面生成失败"));
+            return;
+          }
+
+          context.drawImage(video, 0, 0, canvas.width, canvas.height);
+          canvas.toBlob((blob) => {
+            cleanup();
+            if (blob) {
+              resolve(blob);
+            } else {
+              reject(new Error("视频封面生成失败"));
+            }
+          }, "image/jpeg", 0.84);
+        }
+
+        video.addEventListener("loadedmetadata", () => {
+          const targetTime = Number.isFinite(video.duration) && video.duration > 0.4 ? 0.2 : 0;
+          if (targetTime === 0 && video.readyState >= 2) {
+            captureFrame();
+            return;
+          }
+          try {
+            video.currentTime = targetTime;
+          } catch (error) {
+            reject(error);
+          }
+        }, { once: true });
+
+        video.addEventListener("loadeddata", captureFrame, { once: true });
+        video.addEventListener("seeked", captureFrame, { once: true });
+
+        video.addEventListener("error", () => {
+          cleanup();
+          reject(new Error("视频封面生成失败"));
+        }, { once: true });
+      });
     }
 
     async function appendUploadedVideo(file, index) {
@@ -1271,9 +1359,20 @@
       });
 
       try {
-        await uploadToSignedUrl(upload.signedUrl, file);
+        await uploadToSignedUrl(upload.signedUrl, file, name);
       } catch (error) {
         throw new Error(error.message || "视频直传失败，请压缩后再试");
+      }
+
+      let posterPreviewUrl = "";
+      try {
+        const posterBlob = await createVideoPoster(file);
+        if (posterBlob && upload.posterSignedUrl) {
+          await uploadToSignedUrl(upload.posterSignedUrl, posterBlob, `${upload.id}-poster.jpg`);
+          posterPreviewUrl = URL.createObjectURL(posterBlob);
+        }
+      } catch (error) {
+        posterPreviewUrl = "";
       }
 
       const record = await fetchJson(photoApiPath, {
@@ -1290,7 +1389,11 @@
           type: file.type || "application/octet-stream",
         }),
       });
-      record.previewUrl = URL.createObjectURL(file);
+      if (posterPreviewUrl) {
+        record.posterUrl = posterPreviewUrl;
+      } else {
+        record.previewUrl = URL.createObjectURL(file);
+      }
       appendGalleryPhoto(record);
     }
 

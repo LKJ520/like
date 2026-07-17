@@ -105,15 +105,30 @@ function createMediaRecord(fileId, fileName, storagePath, ownerToken, mediaType)
   };
 }
 
+function getPosterStoragePath(storagePath = "") {
+  return storagePath.replace(/\.[a-z0-9]+$/i, "-poster.jpg");
+}
+
 function toPublicRecord(row, mediaType = "") {
-  return {
+  const resolvedMediaType = mediaType || getMediaType(row.storage_path || row.name || "");
+  const record = {
     id: row.id,
     name: row.name,
     storagePath: row.storage_path,
     publicUrl: `${SUPABASE_ROOT}/storage/v1/object/public/${SUPABASE_BUCKET}/${encodeObjectPath(row.storage_path)}`,
-    mediaType: mediaType || getMediaType(row.storage_path || row.name || ""),
+    mediaType: resolvedMediaType,
     createdAt: row.created_at || new Date().toISOString(),
     isOwner: true,
+  };
+
+  if (resolvedMediaType === "video") {
+    const posterStoragePath = getPosterStoragePath(row.storage_path);
+    record.posterStoragePath = posterStoragePath;
+    record.posterUrl = `${SUPABASE_ROOT}/storage/v1/object/public/${SUPABASE_BUCKET}/${encodeObjectPath(posterStoragePath)}`;
+  }
+
+  return {
+    ...record,
   };
 }
 
@@ -180,6 +195,32 @@ async function insertPhotoRecord(row, mediaType) {
   };
 }
 
+async function createSignedStorageUrl(storagePath, errorPrefix) {
+  const signUrl = `${SUPABASE_ROOT}/storage/v1/object/upload/sign/${SUPABASE_BUCKET}/${encodeObjectPath(storagePath)}`;
+  const signResponse = await fetch(signUrl, {
+    method: "POST",
+    headers: supabaseHeaders({
+      "Content-Type": "application/json",
+    }),
+    body: JSON.stringify({ upsert: false }),
+  });
+
+  if (!signResponse.ok) {
+    const text = await signResponse.text();
+    throw new Error(`${errorPrefix}: ${text}`);
+  }
+
+  const signed = await signResponse.json();
+  const signedPath = signed.url || signed.signedUrl;
+  if (!signedPath) {
+    throw new Error(`${errorPrefix}: 响应缺少上传地址`);
+  }
+
+  return signedPath.startsWith("http")
+    ? signedPath
+    : `${SUPABASE_ROOT}${signedPath.startsWith("/storage/v1/") ? "" : "/storage/v1"}${signedPath}`;
+}
+
 async function createSignedUpload(request, bodyOverride) {
   const body = bodyOverride || await readBodyJson(request);
   const ownerToken = String(request.headers["x-photo-owner-token"] || body.ownerToken || "").trim();
@@ -198,37 +239,26 @@ async function createSignedUpload(request, bodyOverride) {
   const fileId = randomUUID();
   const ext = getExtension(fileName, fileType, mediaType);
   const storagePath = `gallery/${fileId}${ext}`;
-  const signUrl = `${SUPABASE_ROOT}/storage/v1/object/upload/sign/${SUPABASE_BUCKET}/${encodeObjectPath(storagePath)}`;
+  const posterStoragePath = getPosterStoragePath(storagePath);
 
-  const signResponse = await fetch(signUrl, {
-    method: "POST",
-    headers: supabaseHeaders({
-      "Content-Type": "application/json",
-    }),
-    body: JSON.stringify({ upsert: false }),
-  });
-
-  if (!signResponse.ok) {
-    const text = await signResponse.text();
-    return jsonResponse(500, { error: `创建视频上传地址失败: ${text}` });
+  let signedUrl;
+  let posterSignedUrl;
+  try {
+    signedUrl = await createSignedStorageUrl(storagePath, "创建视频上传地址失败");
+    posterSignedUrl = await createSignedStorageUrl(posterStoragePath, "创建视频封面上传地址失败");
+  } catch (error) {
+    return jsonResponse(500, { error: error.message || "创建视频上传地址失败" });
   }
-
-  const signed = await signResponse.json();
-  const signedPath = signed.url || signed.signedUrl;
-  if (!signedPath) {
-    return jsonResponse(500, { error: "创建视频上传地址失败: 响应缺少上传地址" });
-  }
-
-  const signedUrl = signedPath.startsWith("http")
-    ? signedPath
-    : `${SUPABASE_ROOT}${signedPath.startsWith("/storage/v1/") ? "" : "/storage/v1"}${signedPath}`;
 
   return jsonResponse(200, {
     id: fileId,
     name: fileName || "上传的视频",
     storagePath,
+    posterStoragePath,
     signedUrl,
+    posterSignedUrl,
     publicUrl: `${SUPABASE_ROOT}/storage/v1/object/public/${SUPABASE_BUCKET}/${encodeObjectPath(storagePath)}`,
+    posterUrl: `${SUPABASE_ROOT}/storage/v1/object/public/${SUPABASE_BUCKET}/${encodeObjectPath(posterStoragePath)}`,
     mediaType,
   });
 }
@@ -360,6 +390,13 @@ async function deletePhoto(request) {
   if (!deleteStorageResponse.ok) {
     const text = await deleteStorageResponse.text();
     return jsonResponse(500, { error: `删除文件失败: ${text}` });
+  }
+
+  if (getMediaType(photo.storage_path) === "video") {
+    await fetch(`${SUPABASE_ROOT}/storage/v1/object/${SUPABASE_BUCKET}/${encodeObjectPath(getPosterStoragePath(photo.storage_path))}`, {
+      method: "DELETE",
+      headers: supabaseHeaders(),
+    });
   }
 
   const deleteRowResponse = await fetch(`${SUPABASE_ROOT}/rest/v1/${SUPABASE_TABLE}?id=eq.${encodeURIComponent(id)}`, {

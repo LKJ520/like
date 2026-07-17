@@ -39,7 +39,7 @@ create index if not exists gallery_photos_created_at_idx
 
 - 上传照片或视频会先到 `/api/photos`
 - 照片由 API 写入 Supabase Storage 和表
-- 视频由 API 签发 Supabase 直传地址，浏览器直传到 Storage 后再写入表
+- 视频由 API 签发 Supabase 直传地址，浏览器直传视频和封面图到 Storage 后再写入表
 - 页面重新打开时，会自动拉回全部公开照片和视频
 - 只有本浏览器里上传过的内容，才会显示删除权限
 
