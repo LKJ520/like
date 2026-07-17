@@ -1406,8 +1406,14 @@
     }
 
     function vibrateForKiss() {
-      if (!("vibrate" in navigator)) return;
-      navigator.vibrate([55, 35, 55]);
+      const vibrate = navigator.vibrate;
+      if (typeof vibrate !== "function") return false;
+
+      try {
+        return vibrate.call(navigator, [80, 30, 80, 30, 120]);
+      } catch (error) {
+        return false;
+      }
     }
 
     function playKissSound() {
@@ -1486,6 +1492,7 @@
     }
 
     function playKiss() {
+      const didVibrate = vibrateForKiss();
       kissTotal += 1;
       kissCount.textContent = `已经亲了 ${kissTotal} 次`;
       kissWidget.classList.remove("is-kissing");
@@ -1500,8 +1507,7 @@
       burstHearts(rect.left + rect.width / 2, rect.top + rect.height * 0.42);
       burstKissFireworks();
       playKissSound();
-      vibrateForKiss();
-      showToast("亲亲送达，手机也跟着心动了一下");
+      showToast(didVibrate ? "亲亲送达，手机也跟着心动了一下" : "亲亲送达，心动动画也送到啦");
     }
 
     function showHeroSlide(index) {
