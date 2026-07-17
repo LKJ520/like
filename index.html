@@ -857,10 +857,13 @@
       position: fixed;
       inset: 0;
       z-index: 30;
-      display: grid;
-      place-items: center;
-      padding: 22px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: max(22px, env(safe-area-inset-top)) 22px max(22px, env(safe-area-inset-bottom));
       background:
+        radial-gradient(circle at 22% 18%, rgba(255, 216, 77, 0.5) 0 82px, transparent 84px),
+        radial-gradient(circle at 82% 78%, rgba(32, 211, 155, 0.35) 0 92px, transparent 94px),
         linear-gradient(90deg, rgba(23, 21, 31, 0.06) 1px, transparent 1px),
         linear-gradient(180deg, rgba(23, 21, 31, 0.06) 1px, transparent 1px),
         var(--paper);
@@ -872,35 +875,208 @@
     }
 
     .entry-card {
-      width: min(100%, 460px);
-      border: 3px solid var(--line);
-      border-radius: 8px;
-      padding: 24px;
-      background: var(--white);
-      box-shadow: var(--shadow);
+      display: grid;
+      justify-items: center;
+      gap: 24px;
+      width: min(100%, 560px);
+      text-align: center;
     }
 
     .entry-card .tag {
-      margin-bottom: 18px;
+      margin-inline: auto;
     }
 
     .entry-card h2 {
+      margin-top: 0;
       color: var(--ink);
-      font-size: clamp(34px, 10vw, 56px);
+      font-size: clamp(32px, 9vw, 58px);
     }
 
     .entry-card p {
-      margin: 16px 0 22px;
+      max-width: 460px;
+      margin: 14px auto 0;
       color: var(--muted);
       font-size: 17px;
       font-weight: 800;
       line-height: 1.7;
     }
 
-    .entry-card button {
+    .entry-envelope-button {
+      position: relative;
+      display: block;
+      width: min(100%, 430px);
+      min-height: 286px;
+      border: 0;
+      padding: 0;
+      background: transparent;
+      box-shadow: none;
+      transform: rotate(-1.5deg);
+      cursor: pointer;
+      perspective: 900px;
+    }
+
+    .entry-envelope-button:active {
+      transform: rotate(-1.5deg) translateY(3px);
+    }
+
+    .entry-envelope {
+      position: absolute;
+      left: 50%;
+      bottom: 54px;
       width: 100%;
+      height: 232px;
+      transform: translateX(-50%);
+      filter: drop-shadow(8px 8px 0 var(--line));
+    }
+
+    .entry-envelope-back,
+    .entry-envelope-front,
+    .entry-envelope-left,
+    .entry-envelope-right,
+    .entry-envelope-flap,
+    .entry-letter-paper,
+    .entry-stamp {
+      position: absolute;
+      border: 3px solid var(--line);
+    }
+
+    .entry-envelope-back {
+      inset: 52px 0 0;
+      border-radius: 8px;
+      background: #ffe7ef;
+    }
+
+    .entry-letter-paper {
+      left: 9%;
+      right: 9%;
+      top: 16px;
+      height: 164px;
+      z-index: 1;
+      border-radius: 8px;
+      padding: 24px 18px;
+      background:
+        linear-gradient(180deg, transparent 31px, rgba(255, 79, 123, 0.22) 32px, transparent 33px),
+        var(--white);
+      background-size: 100% 34px;
+      transform: translateY(72px);
+      transition: transform 520ms cubic-bezier(0.2, 0.85, 0.24, 1.1);
+    }
+
+    .entry-letter-paper strong,
+    .entry-letter-paper span {
+      display: block;
+      color: var(--ink);
+      font-weight: 900;
+      line-height: 1.35;
+    }
+
+    .entry-letter-paper strong {
+      font-size: 18px;
+    }
+
+    .entry-letter-paper span {
+      margin-top: 8px;
+      color: var(--red);
+      font-size: 24px;
+    }
+
+    .entry-envelope-left,
+    .entry-envelope-right,
+    .entry-envelope-front {
+      z-index: 2;
+      bottom: 0;
+      height: 178px;
+      background: #ff9db5;
+    }
+
+    .entry-envelope-left {
+      left: 0;
+      width: 50%;
+      clip-path: polygon(0 0, 100% 50%, 0 100%);
+    }
+
+    .entry-envelope-right {
+      right: 0;
+      width: 50%;
+      clip-path: polygon(100% 0, 0 50%, 100% 100%);
+    }
+
+    .entry-envelope-front {
+      left: 0;
+      width: 100%;
+      border-radius: 0 0 8px 8px;
+      background: #ff7598;
+      clip-path: polygon(0 28%, 50% 78%, 100% 28%, 100% 100%, 0 100%);
+    }
+
+    .entry-envelope-flap {
+      left: 0;
+      top: 52px;
+      z-index: 4;
+      width: 100%;
+      height: 136px;
+      background: var(--pink);
+      clip-path: polygon(0 0, 50% 100%, 100% 0);
+      transform-origin: top center;
+      transition: transform 420ms cubic-bezier(0.2, 0.8, 0.24, 1), z-index 0ms linear 240ms;
+    }
+
+    .entry-stamp {
+      left: 50%;
+      top: 138px;
+      z-index: 5;
+      display: grid;
+      place-items: center;
+      width: 74px;
+      height: 74px;
+      border-radius: 999px;
       color: var(--white);
       background: var(--red);
+      box-shadow: 4px 4px 0 var(--line);
+      font-size: 32px;
+      font-weight: 900;
+      transform: translateX(-50%) rotate(8deg);
+      transition: transform 280ms ease, opacity 240ms ease;
+    }
+
+    .entry-action-text {
+      position: absolute;
+      left: 50%;
+      bottom: 0;
+      z-index: 6;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 42px;
+      border: 3px solid var(--line);
+      border-radius: 999px;
+      padding: 8px 18px;
+      color: var(--ink);
+      background: var(--yellow);
+      box-shadow: 4px 4px 0 var(--line);
+      font-size: 16px;
+      font-weight: 900;
+      transform: translateX(-50%);
+      white-space: nowrap;
+    }
+
+    .entry-gate.is-opening .entry-envelope-flap {
+      z-index: 0;
+      transform: rotateX(178deg);
+    }
+
+    .entry-gate.is-opening .entry-letter-paper {
+      transform: translateY(-44px);
+    }
+
+    .entry-gate.is-opening .entry-stamp {
+      opacity: 0;
+      transform: translateX(-50%) rotate(22deg) scale(0.55);
+    }
+
+    .entry-gate.is-opening .entry-action-text {
+      color: var(--white);
+      background: var(--mint);
     }
 
     .lightbox {
@@ -1048,6 +1224,64 @@
         margin: 0 auto;
       }
 
+      .entry-gate {
+        align-items: start;
+        overflow-y: auto;
+      }
+
+      .entry-card {
+        gap: 18px;
+      }
+
+      .entry-card h2 {
+        font-size: clamp(30px, 8vw, 44px);
+      }
+
+      .entry-card p {
+        font-size: 16px;
+      }
+
+      .entry-envelope-button {
+        width: min(100%, 360px);
+        min-height: 248px;
+      }
+
+      .entry-envelope {
+        height: 206px;
+        bottom: 42px;
+      }
+
+      .entry-envelope-back {
+        inset: 46px 0 0;
+      }
+
+      .entry-letter-paper {
+        height: 146px;
+        padding: 20px 14px;
+      }
+
+      .entry-letter-paper span {
+        font-size: 21px;
+      }
+
+      .entry-envelope-left,
+      .entry-envelope-right,
+      .entry-envelope-front {
+        height: 158px;
+      }
+
+      .entry-envelope-flap {
+        top: 46px;
+        height: 122px;
+      }
+
+      .entry-stamp {
+        top: 122px;
+        width: 64px;
+        height: 64px;
+        font-size: 28px;
+      }
+
       .heart-badge {
         width: 78px;
         height: 78px;
@@ -1130,8 +1364,22 @@
     <div class="entry-card">
       <div class="tag">刘坤洁写给朱洲毅</div>
       <h2 id="entryTitle">朱洲毅，有话想对你说</h2>
-      <p id="entryHint">点一下打开这封表白，音乐会和心意一起开始。</p>
-      <button type="button" id="enterPage">开启这封表白</button>
+      <p id="entryHint">这封信已经放在这里，等你亲手打开。</p>
+      <button class="entry-envelope-button" type="button" id="enterPage" aria-label="打开这封表白信">
+        <span class="entry-envelope" aria-hidden="true">
+          <span class="entry-envelope-back"></span>
+          <span class="entry-letter-paper">
+            <strong>To 朱洲毅</strong>
+            <span>刘坤洁的心意</span>
+          </span>
+          <span class="entry-envelope-flap"></span>
+          <span class="entry-envelope-left"></span>
+          <span class="entry-envelope-right"></span>
+          <span class="entry-envelope-front"></span>
+          <span class="entry-stamp">♥</span>
+        </span>
+        <span class="entry-action-text" id="entryActionText">开启这封表白</span>
+      </button>
     </div>
   </div>
   <div class="heart-layer" aria-hidden="true"></div>
@@ -1312,6 +1560,7 @@
     const entryGate = document.querySelector("#entryGate");
     const enterPage = document.querySelector("#enterPage");
     const entryHint = document.querySelector("#entryHint");
+    const entryActionText = document.querySelector("#entryActionText");
     const heartLayer = document.querySelector(".heart-layer");
     const toast = document.querySelector("#toast");
     const promises = document.querySelectorAll(".promise");
@@ -2146,9 +2395,13 @@
     async function enterWithMusic(event) {
       if (isEntering) return;
       isEntering = true;
-      entryGate.classList.add("is-hidden");
-      enterPage.textContent = "正在开启...";
-      entryHint.textContent = "正在打开页面，音乐稍后尝试播放。";
+      enterPage.disabled = true;
+      entryGate.classList.add("is-opening");
+      entryActionText.textContent = "正在打开";
+      entryHint.textContent = "信封打开啦，心意马上送到。";
+      window.setTimeout(() => {
+        entryGate.classList.add("is-hidden");
+      }, 720);
       void startMusic({ silent: true }).then((started) => {
         if (!started) {
           showToast("页面已打开，音乐没能自动播放");
