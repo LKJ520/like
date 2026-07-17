@@ -1343,6 +1343,8 @@
     let kissTotal = 0;
     let kissTimer;
     let kissAudioContext;
+    let pendingKissVibration = null;
+    let pendingKissVibrationTime = 0;
     let heroSwipeStartX = 0;
     let heroSwipeStartY = 0;
     let isHeroSwipeTracking = false;
@@ -1410,10 +1412,26 @@
       if (typeof vibrate !== "function") return false;
 
       try {
-        return vibrate.call(navigator, [80, 30, 80, 30, 120]);
+        return vibrate.call(navigator, [120, 45, 120, 45, 180]);
       } catch (error) {
         return false;
       }
+    }
+
+    function prepareKissVibration() {
+      pendingKissVibration = vibrateForKiss();
+      pendingKissVibrationTime = Date.now();
+    }
+
+    function consumeKissVibration() {
+      if (Date.now() - pendingKissVibrationTime < 900) {
+        const didVibrate = pendingKissVibration;
+        pendingKissVibration = null;
+        pendingKissVibrationTime = 0;
+        return didVibrate;
+      }
+
+      return vibrateForKiss();
     }
 
     function playKissSound() {
@@ -1492,7 +1510,7 @@
     }
 
     function playKiss() {
-      const didVibrate = vibrateForKiss();
+      const didVibrate = consumeKissVibration();
       kissTotal += 1;
       kissCount.textContent = `已经亲了 ${kissTotal} 次`;
       kissWidget.classList.remove("is-kissing");
@@ -1507,7 +1525,7 @@
       burstHearts(rect.left + rect.width / 2, rect.top + rect.height * 0.42);
       burstKissFireworks();
       playKissSound();
-      showToast(didVibrate ? "亲亲送达，手机也跟着心动了一下" : "亲亲送达，心动动画也送到啦");
+      showToast(didVibrate ? "亲亲送达，心动一下" : "亲亲送达，心动动画也送到啦");
     }
 
     function showHeroSlide(index) {
@@ -2078,6 +2096,11 @@
       showToast("愿这份喜欢被你看见");
     });
 
+    if ("PointerEvent" in window) {
+      kissButton.addEventListener("pointerdown", prepareKissVibration);
+    } else {
+      kissButton.addEventListener("touchstart", prepareKissVibration, { passive: true });
+    }
     kissButton.addEventListener("click", playKiss);
 
     promises.forEach((button) => {
