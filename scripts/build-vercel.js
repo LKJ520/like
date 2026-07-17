@@ -23,5 +23,10 @@ fs.rmSync(output, { recursive: true, force: true });
 fs.mkdirSync(output, { recursive: true });
 fs.copyFileSync(path.join(root, "index.html"), path.join(output, "index.html"));
 copyDirectory(path.join(root, "assets"), path.join(output, "assets"));
+fs.writeFileSync(
+  path.join(output, "_headers"),
+  "/\n  Cache-Control: no-store\n/index.html\n  Cache-Control: no-store\n",
+  "utf8"
+);
 
 console.log("Built static site into public/");
